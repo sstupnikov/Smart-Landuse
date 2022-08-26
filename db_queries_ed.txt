@@ -1,0 +1,119 @@
+-- Пример задачи 1. Для поля 2 хозяйства Козлово, состоящего из нескольких участков с различными видами земель, определить минимальный уровень интенсивности технологий, при котором озимая рожь даст среднюю урожайность по полю не менее 4 т/га.
+
+
+select * from (
+select 
+	r.agrostation_name
+	, r.field_name
+ 	, r.crop_name
+	, r.index
+	, r.technology_level
+	, sum(r.harvest_for_field_ae_type)/sum(r.area) average_harvest
+from 
+(
+select
+	d.agrostation_name
+	, d.field_name
+ 	, st.crop_name
+	, tl.index
+	, st.technology_level
+	, st.harvest 
+	, d.area
+	, st.harvest*d.area harvest_for_field_ae_type
+from
+	economic_parameters."SOIL_TYPE_TECHNOLOGY" st
+	, data."FIELD_AE_TYPE" d
+	, economic_parameters."TECHNOLOGY_LEVEL" tl
+where
+	st.zone_name is not distinct from d.zone_name
+	and st.province_name is not distinct from d.province_name
+	and st.ae_type is not distinct from d.ae_type
+	and st.technology_level = tl .technology_level
+	and d.agrostation_name like 'Козлово'
+	and d.field_name like '2'
+	and st.crop_name like 'Озимая рожь'
+) r
+group by 
+	r.agrostation_name
+	, r.field_name
+ 	, r.crop_name
+	, r.index
+	, r.technology_level
+) r2
+where r2.average_harvest > 4
+order by r2.index 
+limit 1
+
+
+-- Сценарий 2. Для участка площадью 1 хозяйства Козлово определить максимальную по интенсивности технологию для озимой ржи, при которой себестоимость производства не превышает 20000 руб.
+
+select
+	d.agrostation_name
+	, d.field_name
+ 	, st.crop_name
+	, st.technology_level
+	, st.harvest*st.cost cost_per_ha
+	, d.area
+	, st.harvest*st.cost*d.area cost_for_field
+from
+	economic_parameters."SOIL_TYPE_TECHNOLOGY" st
+	, data."FIELD_AE_TYPE" d
+	, economic_parameters."TECHNOLOGY_LEVEL" tl
+where
+	st.zone_name = d.zone_name and st.province_name = d.province_name
+	and st.ae_type = d.ae_type
+	and st.technology_level = tl .technology_level
+	and d.agrostation_name = 'Козлово'
+ 	and d.field_name = '1'
+	and st.crop_name = 'Озимая рожь'
+	and st.harvest*st.cost*d.area < 20000
+order by
+	tl.index desc
+limit 1
+
+-- Сценарий 3. Для участка 1 хозяйства Козлово определить технологию, обеспечивающую максимальную рентабельность выращивания озимой ржи
+
+select
+	d.agrostation_name
+	, d.field_name
+ 	, st.crop_name
+	, st.technology_level
+	, st.harvest*(15000 - st.cost) profit_per_ha
+	, d.area
+from
+	economic_parameters."SOIL_TYPE_TECHNOLOGY" st
+	, data."FIELD_AE_TYPE" d
+	, economic_parameters."TECHNOLOGY_LEVEL" tl
+where
+	st.zone_name = d.zone_name and st.province_name = d.province_name
+	and st.ae_type = d.ae_type
+	and st.technology_level = tl .technology_level
+	and d.agrostation_name = 'Козлово'
+ 	and d.field_name = '1'
+	and st.crop_name = 'Озимая рожь'
+order by
+	st.harvest*(15000 - st.cost) desc
+limit 1
+
+
+-- Сценарий 4. Для участка участка 6 хозяйства Козлово определить технологию, обеспечивающую максимальный по объему урожай культуры crop
+
+select
+ 	st.crop_name
+	, tl.index
+	, st.technology_level
+	, st.harvest
+from
+	economic_parameters."SOIL_TYPE_TECHNOLOGY" st
+	, data."FIELD_AE_TYPE" d
+	, economic_parameters."TECHNOLOGY_LEVEL" tl
+where
+	st.zone_name = d.zone_name and st.province_name = d.province_name
+	and st.ae_type = d.ae_type
+	and st.technology_level = tl .technology_level
+	and d.agrostation_name = 'Козлово'
+ 	and d.field_name = '6'
+	and st.crop_name like 'Озимая рожь'
+order by 
+	st.harvest desc
+limit 1

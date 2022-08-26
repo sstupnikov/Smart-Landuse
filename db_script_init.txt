@@ -1,0 +1,473 @@
+CREATE TABLE economic_parameters."TMP_SOIL_TYPE_TECHNOLOGY" (
+	zone_name character varying NOT NULL,
+	province_name character varying NOT NULL,
+	crop_name character varying NOT NULL,
+	ae_type character varying NOT NULL,
+	ext_harvest float,
+	ext_cost float,
+	norm_harvest float,
+	norm_cost float,
+	int_harvest float,
+	int_cost float,
+	toch_harvest float,
+	toch_cost float
+);
+
+CREATE TABLE economic_parameters."TMP_PROVINCE_TECHNOLOGY_CROP" (
+	zone_name character varying NOT NULL,
+	province_name character varying NOT NULL,
+	crop_name character varying NOT NULL,
+	technology_level character varying NOT NULL,
+	crop_cultivars character varying
+);
+
+CREATE OR REPLACE PROCEDURE economic_parameters.init_soil_type_technology()
+    LANGUAGE 'plpgsql'
+AS $BODY$
+declare
+    r_economic record;
+begin
+    for r_economic in select * from economic_parameters."TMP_SOIL_TYPE_TECHNOLOGY"  
+    loop 
+		IF r_economic.ext_harvest IS NOT NULL THEN
+			insert into economic_parameters."SOIL_TYPE_TECHNOLOGY"(zone_name, province_name, ae_type, technology_level, crop_name, harvest, cost) 
+			values (r_economic.zone_name, r_economic.province_name, r_economic.ae_type, 'Экстенсивный', r_economic.crop_name, r_economic.ext_harvest, r_economic.ext_cost);
+		END IF;
+		IF r_economic.norm_harvest IS NOT NULL THEN
+			insert into economic_parameters."SOIL_TYPE_TECHNOLOGY"(zone_name, province_name, ae_type, technology_level, crop_name, harvest, cost) 
+			values (r_economic.zone_name, r_economic.province_name, r_economic.ae_type, 'Нормальный', r_economic.crop_name, r_economic.norm_harvest, r_economic.norm_cost);
+		END IF;
+		IF r_economic.int_harvest IS NOT NULL THEN
+			insert into economic_parameters."SOIL_TYPE_TECHNOLOGY"(zone_name, province_name, ae_type, technology_level, crop_name, harvest, cost) 
+			values (r_economic.zone_name, r_economic.province_name, r_economic.ae_type, 'Интенсивный', r_economic.crop_name, r_economic.int_harvest, r_economic.int_cost);
+		END IF;
+		IF r_economic.toch_harvest IS NOT NULL THEN
+			insert into economic_parameters."SOIL_TYPE_TECHNOLOGY"(zone_name, province_name, ae_type, technology_level, crop_name, harvest, cost) 
+			values (r_economic.zone_name, r_economic.province_name, r_economic.ae_type, 'Точный', r_economic.crop_name, r_economic.toch_harvest, r_economic.toch_cost);
+		END IF;
+    end loop;
+end;
+$BODY$;
+
+CREATE OR REPLACE PROCEDURE economic_parameters.init_province_technology_crop()
+    LANGUAGE 'plpgsql'
+AS $BODY$
+declare
+    r_economic record;
+	v_crop_cultivars character varying[];
+begin
+    for r_economic in select * from economic_parameters."TMP_PROVINCE_TECHNOLOGY_CROP"  
+    loop 
+		v_crop_cultivars = string_to_array(r_economic.crop_cultivars, ',');
+		insert into economic_parameters."PROVINCE_TECHNOLOGY_CROP"(zone_name, province_name, crop_name, technology_level, crop_cultivars) 
+		values (r_economic.zone_name, r_economic.province_name, r_economic.crop_name, r_economic.technology_level, v_crop_cultivars);
+    end loop;
+end;
+$BODY$;
+
+truncate table economic_parameters."TMP_SOIL_TYPE_TECHNOLOGY";
+copy economic_parameters."TMP_SOIL_TYPE_TECHNOLOGY" FROM '\TEMP\agro_data\smart_landuse\economic_2.csv' DELIMITER '|' HEADER CSV;
+CALL economic_parameters.init_soil_type_technology();
+
+truncate table economic_parameters."TMP_PROVINCE_TECHNOLOGY_CROP";
+copy economic_parameters."TMP_PROVINCE_TECHNOLOGY_CROP" FROM '\TEMP\agro_data\smart_landuse\economic_1.csv' DELIMITER '|' HEADER CSV;
+CALL economic_parameters.init_province_technology_crop();
+
+truncate table economic_parameters."TECHNOLOGY_LEVEL";
+insert into economic_parameters."TECHNOLOGY_LEVEL" (technology_level, index) values ('Экстенсивный', 1);
+insert into economic_parameters."TECHNOLOGY_LEVEL" (technology_level, index) values ('Нормальный', 2);
+insert into economic_parameters."TECHNOLOGY_LEVEL" (technology_level, index) values ('Интенсивный', 3);
+insert into economic_parameters."TECHNOLOGY_LEVEL" (technology_level, index) values ('Точный', 4);
+
+
+
+-- ========================================================================================================================================
+
+CREATE TABLE agricultural_technologies_registry."TMP_AGROTECHNOLOGY" (
+	site character varying,
+	zone_name character varying NOT NULL,
+	province_name character varying NOT NULL,
+	administrative_regions character varying[],
+	crop_name character varying,
+	technology_level character varying,
+	crop_potential character varying,
+	labor_productivity character varying,
+	guaranteed_harvest character varying,
+	cost character varying,
+	main_product_type character varying,
+	main_product_purpose character varying,
+	side_product_type character varying,
+	side_product_purpose character varying,
+	quality_indicator_gost character varying,
+	quality_indicator_max_gluten character varying,
+	quality_indicator_nature character varying,
+	quality_indicator_max_humidity character varying,
+	selling_way character varying,
+	market_demand_level character varying,
+	ae_type_list character varying[],
+	precursors character varying[],
+	recommended_cultivars character varying[],
+	seed_preparation character varying,
+	fert_type character varying,
+	fert_quantity character varying,
+	pest_type character varying,
+	pest_quantity character varying,
+	herb_type character varying,
+	herb_quantity character varying,
+	fung_type character varying,
+	fung_quantity character varying,
+	insc_type character varying,
+	insc_quantity character varying,
+	retr_type character varying,
+	retr_quantity character varying,
+	izvst character varying,
+	orgn_type character varying,
+	orgn_quantity character varying
+);
+
+CREATE OR REPLACE PROCEDURE agricultural_technologies_registry.init_agrotechnology()
+    LANGUAGE 'plpgsql'
+AS $BODY$
+declare
+    r_technology record;
+	v_technology_id bigint;
+begin
+    for r_technology in select * from agricultural_technologies_registry."TMP_AGROTECHNOLOGY" 
+    loop 
+		select agrotechnology_id into v_technology_id from agricultural_technologies_registry."AGROTECHNOLOGY" where site is not distinct from r_technology.site and crop_name is not distinct from r_technology.crop_name and technology_level is not distinct from r_technology.technology_level;
+		if v_technology_id IS NULL then 
+			insert into agricultural_technologies_registry."AGROTECHNOLOGY"(site, zone_name, province_name, administrative_regions, crop_name, technology_level, crop_potential, labor_productivity, guaranteed_harvest, cost, main_product_type, main_product_purpose, side_product_type, side_product_purpose, quality_indicator_gost, quality_indicator_max_gluten, quality_indicator_nature, quality_indicator_max_humidity, selling_way, market_demand_level, ae_type_list, precursors, recommended_cultivars, seed_preparation) 
+				values (r_technology.site, r_technology.zone_name, r_technology.province_name, r_technology.administrative_regions, r_technology.crop_name, r_technology.technology_level, r_technology.crop_potential, r_technology.labor_productivity, r_technology.guaranteed_harvest, r_technology.cost, r_technology.main_product_type, r_technology.main_product_purpose, r_technology.side_product_type, r_technology.side_product_purpose, r_technology.quality_indicator_gost, r_technology.quality_indicator_max_gluten, r_technology.quality_indicator_nature, r_technology.quality_indicator_max_humidity, r_technology.selling_way, r_technology.market_demand_level, r_technology.ae_type_list, r_technology.precursors, r_technology.recommended_cultivars, r_technology.seed_preparation);
+			select agrotechnology_id into v_technology_id from agricultural_technologies_registry."AGROTECHNOLOGY" where site is not distinct from r_technology.site and crop_name is not distinct from r_technology.crop_name and technology_level is not distinct from r_technology.technology_level;
+		end if;
+		if r_technology.fert_type is not null then
+			insert into agricultural_technologies_registry."TECHNOLOGY_INTENSIFICATION_RESOURCES" (agrotechnology_id, name, type, quantity, units) 
+				values (v_technology_id, 'Минеральные удобрения', r_technology.fert_type, r_technology.fert_quantity, '');
+		end if;
+		if r_technology.pest_type is not null then
+			insert into agricultural_technologies_registry."TECHNOLOGY_INTENSIFICATION_RESOURCES" (agrotechnology_id, name, type, quantity, units) 
+				values (v_technology_id, 'Пестициды', r_technology.pest_type, r_technology.pest_quantity, '');
+		end if;
+		if r_technology.herb_type is not null then
+			insert into agricultural_technologies_registry."TECHNOLOGY_INTENSIFICATION_RESOURCES" (agrotechnology_id, name, type, quantity, units) 
+				values (v_technology_id, 'Гебициды', r_technology.herb_type, r_technology.herb_quantity, '');
+		end if;
+		if r_technology.fung_type is not null then
+			insert into agricultural_technologies_registry."TECHNOLOGY_INTENSIFICATION_RESOURCES" (agrotechnology_id, name, type, quantity, units) 
+				values (v_technology_id, 'Фунгицыды', r_technology.fung_type, r_technology.fung_quantity, '');
+		end if;
+		if r_technology.insc_type is not null then
+			insert into agricultural_technologies_registry."TECHNOLOGY_INTENSIFICATION_RESOURCES" (agrotechnology_id, name, type, quantity, units) 
+				values (v_technology_id, 'Инсектициды', r_technology.insc_type, r_technology.insc_quantity, '');
+		end if;
+		if r_technology.retr_type is not null then
+			insert into agricultural_technologies_registry."TECHNOLOGY_INTENSIFICATION_RESOURCES" (agrotechnology_id, name, type, quantity, units) 
+				values (v_technology_id, 'Ретардант', r_technology.retr_type, r_technology.retr_quantity, '');
+		end if;
+		if r_technology.izvst is not null then
+			insert into agricultural_technologies_registry."TECHNOLOGY_INTENSIFICATION_RESOURCES" (agrotechnology_id, name, type, quantity, units) 
+				values (v_technology_id, 'Известкование', 'Известкование', r_technology.izvst, '');
+		end if;
+		if r_technology.orgn_type is not null then
+			insert into agricultural_technologies_registry."TECHNOLOGY_INTENSIFICATION_RESOURCES" (agrotechnology_id, name, type, quantity, units) 
+				values (v_technology_id, 'Органические удобрения', r_technology.orgn_type, r_technology.orgn_quantity, '');
+		end if;
+    end loop;
+end;
+$BODY$;
+
+
+truncate table agricultural_technologies_registry."TMP_AGROTECHNOLOGY";
+copy agricultural_technologies_registry."TMP_AGROTECHNOLOGY" FROM '\TEMP\agro_data\smart_landuse\agrotechnology_1.csv' DELIMITER '|' HEADER CSV;
+CALL agricultural_technologies_registry.init_agrotechnology();
+
+
+CREATE TABLE agricultural_technologies_registry."TMP_TECHNOLOGY_OPERATIONS" (
+	zone_name character varying NOT NULL,
+	province_name character varying NOT NULL,
+	crop_name character varying,
+	technology_level character varying,
+	precursors character varying[],
+	process character varying,
+	operation character varying,
+	index smallint,
+	technology_parameters character varying,
+	"time" character varying,
+	equipment character varying
+);
+
+CREATE OR REPLACE PROCEDURE agricultural_technologies_registry.init_agrotechnology_operations()
+    LANGUAGE 'plpgsql'
+AS $BODY$
+declare
+    r_technology record;
+	v_technology_id bigint;
+begin
+    for r_technology in select * from agricultural_technologies_registry."TMP_TECHNOLOGY_OPERATIONS"  
+    loop 
+		select agrotechnology_id into v_technology_id 
+			from agricultural_technologies_registry."AGROTECHNOLOGY" 
+			where 
+				zone_name is not distinct from r_technology.zone_name 
+				and province_name is not distinct from r_technology.province_name 
+				and crop_name is not distinct from r_technology.crop_name 
+				and technology_level is not distinct from r_technology.technology_level;
+		if v_technology_id IS NOT NULL then 
+			insert into agricultural_technologies_registry."TECHNOLOGY_OPERATIONS"(agrotechnology_id, process, operation, index, technology_parameters, "time", equipment) 
+			values (v_technology_id, r_technology.process, r_technology.operation, r_technology.index, r_technology.technology_parameters, r_technology."time", r_technology.equipment);
+		end if;
+    end loop;
+end;
+$BODY$;
+
+
+truncate table agricultural_technologies_registry."TMP_TECHNOLOGY_OPERATIONS";
+copy agricultural_technologies_registry."TMP_TECHNOLOGY_OPERATIONS" FROM '\TEMP\agro_data\smart_landuse\agrotechnology_2.csv' DELIMITER '|' HEADER CSV;
+CALL agricultural_technologies_registry.init_agrotechnology_operations();
+
+
+
+-- ===============================================================================================================
+
+CREATE TABLE agroecological_group_registry."TMP_AE_GROUP" (
+	administrative_region varchar,
+	zone varchar,
+	province varchar,
+	administrative_district varchar,
+	ae_group varchar,
+	description varchar,
+	ae_type varchar, 
+	topsoil_thickness numrange,
+	humus_content numrange,
+	рhkcl numrange,
+	hydrolytic_acidity numrange,
+	ground_water_level numrange
+);
+
+
+
+
+CREATE OR REPLACE PROCEDURE agroecological_group_registry.init_ae_group()
+    LANGUAGE 'plpgsql'
+AS $BODY$
+declare
+    r_group record;
+	v_zone_id bigint;
+	v_province_id bigint;
+	v_administrative_region_id bigint;
+	v_administrative_district_id bigint;
+	v_ae_group_id bigint;
+	v_ae_type_id bigint;
+begin
+    for r_group in select * from agroecological_group_registry."TMP_AE_GROUP"  
+    loop
+		select zone_id into v_zone_id from agroecological_group_registry."ZONE" where name is not distinct from r_group.zone;
+		if v_zone_id is null then
+			insert into agroecological_group_registry."ZONE" (name) values (r_group.zone);
+			select zone_id into v_zone_id from agroecological_group_registry."ZONE" where name is not distinct from r_group.zone;
+		end if;
+
+		select province_id into v_province_id from agroecological_group_registry."PROVINCE" where name is not distinct from r_group.province and zone_id = v_zone_id;
+		if v_province_id is null then
+			insert into agroecological_group_registry."PROVINCE" (zone_id, name) values (v_zone_id, r_group.province);
+			select province_id into v_province_id from agroecological_group_registry."PROVINCE" where name is not distinct from r_group.province and zone_id = v_zone_id;
+		end if;
+
+		select administrative_region_id into v_administrative_region_id from agroecological_group_registry."ADMINISTRATIVE_REGION" where name is not distinct from r_group.administrative_region;
+		if v_administrative_region_id is null then
+			insert into agroecological_group_registry."ADMINISTRATIVE_REGION" (name) values (r_group.administrative_region);
+			select administrative_region_id into v_administrative_region_id from agroecological_group_registry."ADMINISTRATIVE_REGION" where name is not distinct from r_group.administrative_region;
+			insert into agroecological_group_registry."ADMINISTRATIVE_REGION_ZONE" (administrative_region_id, zone_id) values (v_administrative_region_id, v_zone_id);
+		end if;
+
+		select administrative_district_id into v_administrative_district_id from agroecological_group_registry."ADMINISTRATIVE_DISTRICT" where name is not distinct from r_group.administrative_district and administrative_region_id = v_administrative_region_id;
+		if v_administrative_district_id is null then
+			insert into agroecological_group_registry."ADMINISTRATIVE_DISTRICT" (administrative_region_id, name) values (v_administrative_region_id, r_group.administrative_district);
+			select administrative_district_id into v_administrative_district_id from agroecological_group_registry."ADMINISTRATIVE_DISTRICT" where name is not distinct from r_group.administrative_district and administrative_region_id = v_administrative_region_id;
+			insert into agroecological_group_registry."ADMINISTRATIVE_DISTRICT_PROVINCE" (administrative_district_id, province_id) values (v_administrative_district_id, v_province_id);
+		end if;
+
+		select ae_group_id into v_ae_group_id from agroecological_group_registry."AE_GROUP" where name is not distinct from r_group.ae_group;
+		if v_ae_group_id is null then
+			insert into agroecological_group_registry."AE_GROUP" (name) values (r_group.ae_group);
+			select ae_group_id into v_ae_group_id from agroecological_group_registry."AE_GROUP" where name is not distinct from r_group.ae_group;
+		end if;
+
+		select ae_type_id into v_ae_type_id from agroecological_group_registry."AE_TYPE" where name is not distinct from r_group.ae_type and ae_group_id = v_ae_group_id;
+		if v_ae_type_id is null then
+			insert into agroecological_group_registry."AE_TYPE" (ae_group_id, name) values (v_ae_group_id, r_group.ae_type);
+			select ae_type_id into v_ae_type_id from agroecological_group_registry."AE_TYPE" where name is not distinct from r_group.ae_type  and ae_group_id = v_ae_group_id;
+			insert into agroecological_group_registry."PROVINCE_AE_TYPE" (province_id, ae_type_id) values (v_province_id, v_ae_type_id);
+
+			if r_group.topsoil_thickness is not null then
+				insert into agroecological_group_registry."AE_TYPE_PROPERTY" (ae_type_id, name, units, value) values (v_ae_type_id, 'Мощность пахотного слоя', 'см', r_group.topsoil_thickness);
+			end if;
+			if r_group.humus_content is not null then
+				insert into agroecological_group_registry."AE_TYPE_PROPERTY" (ae_type_id, name, units, value) values (v_ae_type_id, 'Содержание гумуса', '%', r_group.humus_content);
+			end if;
+			if r_group.рhkcl is not null then
+				insert into agroecological_group_registry."AE_TYPE_PROPERTY" (ae_type_id, name, units, value) values (v_ae_type_id, 'рНkCl', 'рНkCl', r_group.рhkcl);
+			end if;
+			if r_group.hydrolytic_acidity is not null then
+				insert into agroecological_group_registry."AE_TYPE_PROPERTY" (ae_type_id, name, units, value) values (v_ae_type_id, 'Гидролитическая кислотность', 'мг-экв на 100 г', r_group.hydrolytic_acidity);
+			end if;
+			if r_group.ground_water_level is not null then
+				insert into agroecological_group_registry."AE_TYPE_PROPERTY" (ae_type_id, name, units, value) values (v_ae_type_id, 'Уровень грунтовых вод', 'м', r_group.ground_water_level);
+			end if;
+		end if;
+    end loop;
+end;
+$BODY$;
+
+
+truncate table agroecological_group_registry."TMP_AE_GROUP";
+copy agroecological_group_registry."TMP_AE_GROUP" FROM '\TEMP\agro_data\smart_landuse\ae_group_1.csv' DELIMITER '|' HEADER CSV;
+CALL agroecological_group_registry.init_ae_group();
+
+
+
+CREATE TABLE agroecological_group_registry."TMP_AE_GROUP_CLIMATE" (
+	administrative_region varchar,
+	zone varchar,
+	province varchar,
+	administrative_district varchar,
+	geomorphology varchar,
+	climate varchar
+);
+
+CREATE OR REPLACE PROCEDURE agroecological_group_registry.init_ae_group_climate()
+    LANGUAGE 'plpgsql'
+AS $BODY$
+declare
+    r_group record;
+	v_zone_id bigint;
+	v_province_id bigint;
+begin
+    for r_group in select * from agroecological_group_registry."TMP_AE_GROUP_CLIMATE"  
+    loop
+		select zone_id into v_zone_id from agroecological_group_registry."ZONE" where name is not distinct from r_group.zone;
+		select province_id into v_province_id from agroecological_group_registry."PROVINCE" where name is not distinct from r_group.province and zone_id = v_zone_id;
+		if v_province_id is not null then
+			update agroecological_group_registry."PROVINCE" set geomorphology = r_group.geomorphology, climate = r_group.climate where province_id = v_province_id;
+		end if;
+    end loop;
+end;
+$BODY$;
+
+truncate table agroecological_group_registry."TMP_AE_GROUP_CLIMATE";
+copy agroecological_group_registry."TMP_AE_GROUP_CLIMATE" FROM '\TEMP\agro_data\smart_landuse\ae_group_2.csv' DELIMITER '|' HEADER CSV;
+CALL agroecological_group_registry.init_ae_group_climate();
+
+
+
+-- ===========================================================
+
+
+CREATE TABLE crop_cultivar_registry."TMP_CROP_CULTIVAR" (
+	crop_name varchar,
+	crop_cultivar varchar,
+	zoning_year smallint,
+	variety varchar,
+	usage varchar,
+	growing_season_length_days varchar,
+	growing_season_length_type varchar,
+	active_temperatures varchar,
+	frost_resistance varchar,
+	drought_tolerance varchar,
+	water_resistance varchar,
+	major_diseases_resistance varchar,
+	snow_mold varchar,
+	powder_mildew varchar,
+	dust_smut varchar,
+	brown_rust varchar,
+	septoria varchar,
+	dark_brown_spotting varchar,
+	net_spotting varchar,
+	lodging_resistance varchar,
+	soil_acidity_resistance varchar,
+	cultivation_conditions_requirements varchar,
+	harvest_ext varchar,
+	harvest_int varchar,
+	harvest_nrm varchar,
+	harvest_tch varchar,
+	quality varchar,
+	protein_content varchar,
+	dry_matter_protein_content varchar,
+	gluten_content varchar,
+	starch_content varchar,
+	extractivity varchar,
+	filminess varchar,
+	grain_nature varchar,
+	weight_1000_grains varchar,
+	bakery_grade varchar,
+	germination_ability varchar,
+	vitreousness varchar,
+	porridge_color varchar,
+	germination_energy varchar,
+	fall_number varchar,
+	alkaloids_in_grain_content varchar,
+	vegetable_oil_content varchar,
+	crude_fiber_content varchar
+);
+
+CREATE OR REPLACE PROCEDURE crop_cultivar_registry.init_crop_cultivar()
+    LANGUAGE 'plpgsql'
+AS $BODY$
+declare
+    r_crop_cultivar record;
+	v_crop_cultivar_id bigint;
+begin
+    for r_crop_cultivar in select * from crop_cultivar_registry."TMP_CROP_CULTIVAR"  
+    loop
+		select crop_cultivar_id into v_crop_cultivar_id from crop_cultivar_registry."CROP_CULTIVAR" where crop_name is not distinct from r_crop_cultivar.crop_name and crop_cultivar is not distinct from r_crop_cultivar.crop_cultivar;
+		if v_crop_cultivar_id is null then
+			insert into crop_cultivar_registry."CROP_CULTIVAR"(crop_name, crop_cultivar, zoning_year, variety, usage) values (r_crop_cultivar.crop_name, r_crop_cultivar.crop_cultivar, r_crop_cultivar.zoning_year, r_crop_cultivar.variety, r_crop_cultivar.usage);
+			select crop_cultivar_id into v_crop_cultivar_id from crop_cultivar_registry."CROP_CULTIVAR" where crop_name is not distinct from r_crop_cultivar.crop_name and crop_cultivar is not distinct from r_crop_cultivar.crop_cultivar;
+		end if;
+		if r_crop_cultivar.growing_season_length_days is not null then
+			insert into crop_cultivar_registry."CROP_CULTIVAR_PROPERTY"(crop_cultivar_id, indicator, value) values (v_crop_cultivar_id, 'Длительность периода вегетации (дни)', r_crop_cultivar.growing_season_length_days);
+		end if;
+    end loop;
+end;
+$BODY$;
+
+
+truncate table crop_cultivar_registry."TMP_CROP_CULTIVAR";
+copy crop_cultivar_registry."TMP_CROP_CULTIVAR" FROM '\TEMP\agro_data\smart_landuse\crop_cultivar_1.csv' DELIMITER '|' HEADER CSV;
+CALL crop_cultivar_registry.init_crop_cultivar();
+
+
+
+-- ===========================================================
+
+
+CREATE TABLE data."TMP_FIELD_AE_TYPE" (
+	agrostation_name varchar,
+	field_name varchar,
+	zone_name varchar,
+	province_name varchar,
+	ae_group varchar,
+	ae_type varchar,
+	area float
+);
+
+CREATE OR REPLACE PROCEDURE data.init_fields()
+    LANGUAGE 'plpgsql'
+AS $BODY$
+declare
+    r_field record;
+begin
+    for r_field in select * from data."TMP_FIELD_AE_TYPE"  
+    loop
+		insert into data."FIELD_AE_TYPE"(agrostation_name, field_name, zone_name, province_name, ae_group, ae_type, area) 
+			values (r_field.agrostation_name, r_field.field_name, r_field.zone_name, r_field.province_name,	r_field.ae_group, r_field.ae_type, r_field.area);
+    end loop;
+end;
+$BODY$;
+
+
+truncate table data."TMP_FIELD_AE_TYPE";
+copy data."TMP_FIELD_AE_TYPE" FROM '\TEMP\agro_data\smart_landuse\fields_1.csv' DELIMITER '|' HEADER CSV;
+copy data."TMP_FIELD_AE_TYPE" FROM '\TEMP\agro_data\smart_landuse\fields_2.csv' DELIMITER '|' HEADER CSV;
+CALL data.init_fields();
+
